@@ -1,24 +1,12 @@
 functions {
 
-    int to_int(real v){
-        int n=0;
-
-        int s = v>=0 ? 1 : -1;
-        real abs_v = fabs(v);
-
-        while(n<abs_v) n = n + s;
-
-        return n;
-    }
-
     real[] osc(real t,
             real[] y,
             real[] theta,
             real[] x_r,
             int[] x_i) {
 
-        int s = size(theta);
-        int N = to_int(sqrt(s));
+        int N = x_i[1];
 
         real dydt[N];
         real omega[N];
@@ -60,7 +48,9 @@ data {
 }
 transformed data {
     real x_r[0];
-    int x_i[0];
+    int x_i[1];
+
+    x_i[1] = N;
 }
 parameters {
     real y0[N];

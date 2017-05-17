@@ -6,19 +6,27 @@ import pystan
 import pickle
 from scipy.integrate import ode
 
-def kuramoto_ODE(t, y, arg):
+def array_without_diag(arr):
+    tmp_arr = np.eye(arr.shape[0])
+    tmp_arr[tmp_arr!=1] = arr.flatten()
+    np.fill_diagonal(tmp_arr, 0)
+    return tmp_arr
 
+def kuramoto_ODE(t, y, arg):
     w, k = arg
     yt = y[:,None]
     dy = y-yt
+
     phase = np.array(w)
-   # for m, _k in enumerate(k):
-   #     phase += np.sum(_k*np.sin((m+1)*dy),axis=1)
     phase += np.sum(k*np.sin(dy),axis=1)
 
     return phase
 
 def compute_kuramoto(t, Y0, W, K):
+    # Assuming two options: square or lacking diag elems
+    if len(K.shape)>1 and K.shape[0]!=K.shape[1]:
+        K = array_without_diag(K)
+
     kODE = ode(kuramoto_ODE)
     kODE.set_integrator("dopri5")
 
@@ -37,10 +45,9 @@ def compute_kuramoto(t, Y0, W, K):
     return phase
 
 ########################################
-model_stan = 'kuramoto.stan'
-model_file_name = 'model.pkl'
-sample_file = 'samples'
 model_config = 'model.config'
+model_file_name = 'model.pkl'
+model_stan = 'kuramoto.stan'
 
 ########################################
 # Reading model
@@ -63,7 +70,10 @@ tMax = config["T"]["tMax"]
 tN = config["T"]["tN"]
 
 ## Convert items
+np.fill_diagonal(K, np.inf)
 K_flat = K.flatten()
+K_flat = K_flat[K_flat!=np.inf]
+np.fill_diagonal(K, 0)
 
 ########################################
 print("Starting model...", end='')
@@ -82,30 +92,26 @@ except Exception as e:
 
 ########################################
 ## Compute
-
 ts = np.linspace(tMin, tMax, tN)
 y_in = compute_kuramoto(ts, Y, W, K)
-y_in = np.transpose(y_in)
+y_in = np.sum(y_in, axis=0)
 
 theta = np.append(W, K_flat)
 init_theta = np.append(Y,theta)
 print("init_theta: ", init_theta)
 
-data = dict(T=tN, N=N, ts=ts, y_in=y_in, t0=tMin-0.0001,  sig_err=.05)
-data["init_params"] = init_theta
-init = dict(theta=init_theta)
-print("Optimising with data")
-#init_param = lambda: {"Theta":init_theta}
-rand = lambda n: np.random.random(n)
-init_param = {"y0":Y+rand(len(Y)), "theta": theta+rand(len(theta))}
-#init_param = {"y0":Y, "theta": theta}
+rand = lambda n: np.random.random(n)/10
 
-#op = model.optimizing(data=data, init="random", sample_file=sample_file)
-op = model.optimizing(data=data, init=init_param, sample_file=sample_file)
+data = dict(T=tN, N=N, ts=ts, y_in=y_in, t0=tMin-0.0001,  sig_err=.005)
+init = dict(theta=init_theta)
+
+print("Optimising with data")
+init_param = {"y0":Y+rand(len(Y)), "theta": theta+rand(len(theta))}
+
+op = model.optimizing(data=data, init=init_param, sample_file="samples")
 
 print("Presenting results")
 print(op)
-
 
 with open('op.pkl', 'wb') as f:
     pickle.dump(op, f)

@@ -1,16 +1,5 @@
 functions {
 
-    int to_int(real v){
-        int n=0;
-
-        int s = v>=0 ? 1 : -1;
-        real abs_v = abs(v);
-
-        while(n<abs_v) n = n + s;
-
-        return n;
-    }
-
     real[] osc(real t,
             real[] y,
             real[] theta,
@@ -18,19 +7,24 @@ functions {
             int[] x_i) {
 
         int s = size(theta);
-        int N = to_int(sqrt(s+0.25)-0.5);
+        int N = x_i[1];
 
         real dydt[N];
         real omega[N];
         real K[N,N];
 
+        int idx = 0;
         for (n in 1:N){
             omega[n] = theta[n];
 
             // Extract K
             for (m in 1:N){
-                int idx = (n-1)*N + m;
-                K[m][n] = theta[N + idx];
+                if (m==n) {
+                    K[m][n] = 0;
+                } else {
+                    idx = idx + 1;
+                    K[m][n] = theta[N + idx];
+                }
             }
         }
 
@@ -55,11 +49,13 @@ data {
 }
 transformed data {
     real x_r[0];
-    int x_i[0];
+    int x_i[1];
+
+    x_i[1] = N;
 }
 parameters {
     real y0[N];
-    real theta[N*(1+N)];
+    real theta[N*N];
 }
 transformed parameters {
 }
